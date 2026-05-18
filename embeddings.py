@@ -1,6 +1,5 @@
 
 # Import Libraries
-
 from llama_index.core import VectorStoreIndex, StorageContext, Settings
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from llama_index.vector_stores.pinecone import PineconeVectorStore
@@ -10,33 +9,47 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from pinecone import Pinecone 
+from google.genai import types
 import fitz   # PyMuPDF for reading PDFs
 import os 
 import streamlit as st 
 import re
 
 
-# Load API KEY 
-# Fetch GEMINI API either from .env or from st.secrets  
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", st.secrets["GEMINI_API_KEY"])        
+def _get_secret(key, *alt_keys):
+    """Read API keys from environment variables or Streamlit secrets."""
+    value = os.getenv(key)
+    if value:
+        return value
+    for name in (key, *alt_keys):
+        try:
+            return st.secrets[name]
+        except Exception:
+            continue
+    raise RuntimeError(
+        f"Missing {key}. Set the {key} environment variable or add it to .streamlit/secrets.toml."
+    )
 
-# Configure Gemini Embeddings
-# Explicitly call the Gemini Embeddings because by default llama use openAI
+
+# Load API keys from env or Streamlit secrets
+GEMINI_API_KEY = _get_secret("GEMINI_API_KEY")
+PINECONE_API_KEY = _get_secret("Pinecone_API_KEY", "PINECONE_API_KEY")
+
+# Configure Gemini Embeddings (768 dims to match the Pinecone index)
 embed_model = GoogleGenAIEmbedding(
-    model_name="models/embedding-001",
-    api_key=os.environ["GEMINI_API_KEY"]
+    model_name="gemini-embedding-001",
+    api_key=GEMINI_API_KEY,
+    embedding_config=types.EmbedContentConfig(output_dimensionality=768),
 )
-
+Settings.embed_model = embed_model
 
 # For Text Generation
 Settings.llm = GoogleGenAI(
-    model = "gemini-1.5-flash-latest",
-    api_key=os.environ["GEMINI_API_KEY"]
+    model="gemini-2.5-flash",
+    api_key=GEMINI_API_KEY,
 )
 
-
-# Load the pinecone API KEY
-pinecone_client = Pinecone(api_key=st.secrets["Pinecone_API_KEY"])
+pinecone_client = Pinecone(api_key=PINECONE_API_KEY)
 
 # Connect to Pinecone index (must be created already in dashboard)
 pinecone_index = pinecone_client.Index("ielts-assistant-index")

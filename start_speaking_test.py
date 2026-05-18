@@ -14,10 +14,20 @@ torch.classes.__path__ = []  # Neutralizes the path inspection
 # Load Whisper
 faster_whisper_model = WhisperModel("small", compute_type = "int8")
 
-# Set Gemini API Key
-api_key = st.secrets["GEMINI_API_KEY"]
-genai.configure(api_key=api_key)
-gemini_model = genai.GenerativeModel("gemini-1.5-flash-latest")
+def _get_gemini_api_key():
+    api_key = os.getenv("GEMINI_API_KEY")
+    if api_key:
+        return api_key
+    try:
+        return st.secrets["GEMINI_API_KEY"]
+    except Exception as exc:
+        raise RuntimeError(
+            "Missing GEMINI_API_KEY. Set the environment variable or add it to .streamlit/secrets.toml."
+        ) from exc
+
+
+genai.configure(api_key=_get_gemini_api_key())
+gemini_model = genai.GenerativeModel("gemini-2.5-flash")
 
 
 class IELTSSpeakingTest:
